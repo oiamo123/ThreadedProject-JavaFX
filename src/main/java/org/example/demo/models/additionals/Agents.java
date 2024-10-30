@@ -4,9 +4,6 @@ import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import org.example.demo.util.annotations.FieldInfo;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 public class Agents {
     @FieldInfo(id = true, name = "ID")
     private SimpleIntegerProperty AgentId = new SimpleIntegerProperty();

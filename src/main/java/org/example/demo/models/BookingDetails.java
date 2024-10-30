@@ -38,7 +38,7 @@ public class BookingDetails {
     @FieldInfo(name = "Commission", isDouble = true, maxLength = 25)
     private SimpleDoubleProperty AgencyCommission;
 
-    @FieldInfo(name = "Booking ID", isInt = true, maxLength = 11)
+    @FieldInfo(name = "Booking ID", isInt = true, maxLength = 11, id = true)
     private SimpleIntegerProperty BookingId;
 
     @FieldInfo(name = "Region ID", isString = true, maxLength = 5, className = Regions.class)

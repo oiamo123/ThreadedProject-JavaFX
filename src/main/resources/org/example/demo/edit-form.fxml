@@ -24,17 +24,12 @@
    <bottom>
       <ButtonBar prefHeight="40.0" prefWidth="200.0" BorderPane.alignment="CENTER">
         <buttons>
-            <Button fx:id="btnPrevious" mnemonicParsing="false" text="Button">
-                <font>
-                    <Font size="14.0" />
-                </font>
-            </Button>
             <Button fx:id="btnAccept" mnemonicParsing="false" text="Button">
                <font>
                   <Font size="14.0" />
                </font>
             </Button>
-            <Button fx:id="btnExit" mnemonicParsing="false" text="Button">
+            <Button fx:id="btnExit" mnemonicParsing="false" text="Exit">
                <font>
                   <Font size="14.0" />
                </font>

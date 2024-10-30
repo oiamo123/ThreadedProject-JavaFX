@@ -2,9 +2,9 @@ package org.example.demo.models;
 
 import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import org.example.demo.util.annotations.FieldInfo;
 
-import java.text.SimpleDateFormat;
 import java.util.Date;
 
 @FieldInfo(name = "Invoice")
@@ -14,7 +14,7 @@ public class Invoices {
     private SimpleIntegerProperty InvoiceId;
 
     @FieldInfo(name = "Date", isDate = true)
-    private SimpleDateFormat InvoiceDate;
+    private SimpleObjectProperty<Date> InvoiceDate;
 
     @FieldInfo(name = "Fees", isDouble = true)
     private SimpleDoubleProperty Fees;
@@ -39,7 +39,7 @@ public class Invoices {
 
     public Invoices() {
         this.InvoiceId = new SimpleIntegerProperty();
-        this.InvoiceDate = new SimpleDateFormat();
+        this.InvoiceDate = new SimpleObjectProperty<Date>();
         this.Fees = new SimpleDoubleProperty();
         this.Total = new SimpleDoubleProperty();
         this.TotalTax = new SimpleDoubleProperty();
@@ -73,12 +73,12 @@ public class Invoices {
         this.InvoiceId.set(invoiceId);
     }
 
-    public SimpleDateFormat getInvoiceDate() {
-        return InvoiceDate;
-    }
+    public Date getInvoiceDate() { return InvoiceDate.get(); }
+
+    public SimpleObjectProperty<Date> invoiceDateProperty () { return InvoiceDate; }
 
     public void setInvoiceDate(Date invoiceDate) {
-        this.InvoiceDate.format(invoiceDate);
+        this.InvoiceDate.set(invoiceDate);
     }
 
     public double getFees() {

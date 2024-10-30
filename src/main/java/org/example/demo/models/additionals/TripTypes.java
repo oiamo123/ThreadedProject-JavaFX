@@ -3,9 +3,6 @@ package org.example.demo.models.additionals;
 import javafx.beans.property.SimpleStringProperty;
 import org.example.demo.util.annotations.FieldInfo;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 public class TripTypes {
     @FieldInfo(id = true, name = "ID")
     private SimpleStringProperty TripTypeId = new SimpleStringProperty();

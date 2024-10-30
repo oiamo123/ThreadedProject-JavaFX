@@ -5,8 +5,6 @@ import javafx.beans.property.SimpleStringProperty;
 import org.example.demo.models.additionals.Agents;
 import org.example.demo.util.annotations.FieldInfo;
 
-import java.sql.ResultSet;
-
 @FieldInfo(name = "Customer")
 public class Customers {
     @FieldInfo(name = "Customer ID", id = true)
@@ -27,7 +25,7 @@ public class Customers {
     @FieldInfo(name = "Province", isString = true, maxLength = 2)
     private SimpleStringProperty CustProv;
 
-    @FieldInfo(name = "Postal", isString = true, maxLength = 6)
+    @FieldInfo(name = "Postal", isString = true, maxLength = 7)
     private SimpleStringProperty CustPostal;
 
     @FieldInfo(name = "Country", isString = true, maxLength = 25)

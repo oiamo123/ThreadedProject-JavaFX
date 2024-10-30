@@ -41,11 +41,19 @@ public class dbHelper {
         return conn;
     }
 
-    public static <T> ObservableList<T> getData(String query, Class<T> clazz) {
+    public static <T> ObservableList<T> getData(String query, Class<T> clazz, Object... params) {
         ObservableList<T> data = FXCollections.observableArrayList();
         try {
-            Statement stmt = dbHelper.getConnection().createStatement();
-            ResultSet rs = stmt.executeQuery(query);
+            PreparedStatement stmt = dbHelper.getConnection().prepareStatement(query);
+
+            // If there are parameters, set them
+            if (params != null && params.length > 0) {
+                for (int i = 0; i < params.length; i++) {
+                    stmt.setObject(i + 1, params[i]);
+                }
+            }
+
+            ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 data.add(dbHelper.formatter(clazz, rs));
             }
@@ -148,19 +156,20 @@ public class dbHelper {
 
             // Set values for the PreparedStatement
             for (int i = 0; i < fields.length; i++) {
-                fields[i].setAccessible(true); // Access each field
-                Object value = unwrapProperty(fields[i]); // Get the value
+                fields[i].setAccessible(true); // Access the field
 
-                // Set values for all fields except the ID first
-                if (!fields[i].getAnnotation(FieldInfo.class).id()) {
+                // Skip the ID field or null values
+                if (!fields[i].getAnnotation(FieldInfo.class).id() || fields[i].get(obj) == null) {
+                    Object value = unwrapProperty(fields[i].get(obj));
                     stmt.setObject(fieldIndex++, value);
                 }
             }
 
-            stmt.setObject(fieldIndex, unwrapProperty(fields[0]));
+            Object idValue = unwrapProperty(fields[0].get(obj));
+            stmt.setObject(fieldIndex, idValue);
 
             stmt.executeUpdate(); // Execute the update
-        } catch (SQLException e) {
+        } catch (SQLException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
     }

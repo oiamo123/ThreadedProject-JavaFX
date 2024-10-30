@@ -6,43 +6,41 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.scene.control.Button;
-import javafx.scene.control.ChoiceBox;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextField;
+import javafx.scene.Node;
+import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
+import javafx.stage.Stage;
 import org.example.demo.models.*;
+import org.example.demo.models.additionals.Fees;
+import org.example.demo.models.additionals.Packages;
 import org.example.demo.util.*;
 import org.example.demo.util.annotations.FieldInfo;
+import org.example.demo.util.dbhelpers.BookingDetailsDB;
+import org.example.demo.util.dbhelpers.BookingsDB;
+import org.example.demo.util.dbhelpers.InvoicesDB;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.net.URL;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.ResourceBundle;
 
 public class EditController {
 
-    @FXML private ResourceBundle resources;
-    @FXML private URL location;
     @FXML private Button btnAccept;
     @FXML private Button btnExit;
-    @FXML private Button btnPrevious;
     @FXML private GridPane grdInputs;
     @FXML private Label lblMode;
 
-    ArrayList<TextField> inputs = new ArrayList<>(); // Keep track of all inputs that were created
+    ArrayList<Object> inputs = new ArrayList<>();
     String mode = ""; // Keeps track of the current mode
-    Object booking = new Bookings();
-    Object bookingDetail = new BookingDetails();
+    Bookings booking = new Bookings();
+    BookingDetails bookingDetail = new BookingDetails();
     Object curObj;
 
     @FXML
@@ -51,36 +49,60 @@ public class EditController {
         assert btnExit != null : "fx:id=\"btnExit\" was not injected: check your FXML file 'edit-form.fxml'.";
         assert grdInputs != null : "fx:id=\"grdInputs\" was not injected: check your FXML file 'edit-form.fxml'.";
         assert lblMode != null : "fx:id=\"lblMode\" was not injected: check your FXML file 'edit-form.fxml'.";
-        assert btnPrevious != null : "fx:id\"btnPrevious\" was not injected: check your FXML file 'edit-form.fxml'";
 
-        btnPrevious.setVisible(false); // Hide the previous btn
+        btnExit.setOnAction(_ -> {
+            Stage stage = (Stage) btnExit.getScene().getWindow();
+            stage.close();
+        });
 
-        btnAccept.setOnAction(new EventHandler<ActionEvent>() {
-            @Override
-            public void handle(ActionEvent actionEvent) {
-                try {
-                    if (mode.equalsIgnoreCase("edit")) { // mode is edit
-                        dbHelper.updateData(curObj);
-                    } else { // mode is add
-                        validateAndBind();
+        btnAccept.setOnAction(_ -> {
+            try {
+                if (mode.equalsIgnoreCase("edit ")) { // mode is edit
+                    validateAndBind();
+                    dbHelper.updateData(curObj);
 
-                        if (curObj instanceof Bookings) {
-                            btnAccept.setText("Submit");
-                            btnPrevious.setVisible(true);
+                    showAlert("Success", "Success", Alert.AlertType.CONFIRMATION);
 
-                            generateGrid(bookingDetail);
-                        } else {
-                            dbHelper.insertData(booking); // insert booking
-                            dbHelper.insertData(bookingDetail); // insert booking details
-                            dbHelper.insertData(createInvoice()); // insert invoice
-                        }
+                    Stage stage = (Stage) btnAccept.getScene().getWindow();
+                    stage.close();
+                } else { // mode is equals to add
+                    validateAndBind();
+
+                    if (curObj instanceof Bookings) {
+                        booking = (Bookings) curObj;
+
+                        ObservableList<Bookings> bookings = BookingsDB.getBookings(); // get all bookings
+                        Bookings newBooking = bookings.getLast(); // get the most recent booking
+
+                        bookingDetail.setBookingId(newBooking.getBookingId()); // add the id
+                        btnAccept.setText("Submit"); // change the text
+                        curObj = bookingDetail; // cur obj = booking detail
+                        generateGrid(bookingDetail); // generate grid
+                    } else {
+                        BookingsDB.insert(booking); // insert booking
+                        BookingDetailsDB.insert(bookingDetail); // insert booking detail
+                        InvoicesDB.insert(createInvoice()); // insert invoice
+
+                        showAlert("Success", "Success", Alert.AlertType.CONFIRMATION);
+
+                        Stage stage = (Stage) btnAccept.getScene().getWindow();
+                        stage.close();
                     }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
                 }
-
+            } catch (Exception e) {
+                inputs.clear();
+                showAlert(e.getMessage().split(":")[1], "Error", Alert.AlertType.ERROR);
+                throw new RuntimeException(e);
             }
         });
+    }
+
+    public void showAlert(String message, String title, Alert.AlertType type) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     public void initData(Object obj, String mode) {
@@ -98,6 +120,26 @@ public class EditController {
     }
 
     private void generateGrid(Object obj) {
+        /*
+        Say you have:
+        public class Bookings {
+            @FieldInfo(id = true, name = "ID")
+            private SimpleIntegerProperty BookingId;
+
+            @FieldInfo(name = "Booking Date", isDate = true)
+            private SimpleObjectProperty<Date> BookingDate;
+
+            @FieldInfo(name = "Fee ID", isString = true, maxLength = 10, className = Fees.class)
+            private SimpleStringProperty FeeId;
+         }
+
+         We can grab all the fields, and then loop over them, we can use the FieldInfo name value
+         for the label and then create an input
+
+         If the className value is not empty though, then the field has a relationship with another
+         table in the database. When this happens, we can create choice box
+         */
+        grdInputs.getChildren().clear();
         Field[] fields = obj.getClass().getDeclaredFields();
         int curGridPane = 0;
 
@@ -111,7 +153,7 @@ public class EditController {
             Label label = new Label(field.getAnnotation(FieldInfo.class).name());
 
             if (field.getAnnotation(FieldInfo.class).className() != Void.class) { // check if field is a table
-                ChoiceBox choiceBox = createChoiceBox(field, obj); // create a choice box
+                ChoiceBox<?> choiceBox = createChoiceBox(field, obj); // create a choice box
                 grdInputs.add(label, 0, curGridPane); // add label and choice box
                 grdInputs.add(choiceBox, 1, curGridPane);
                 curGridPane++;
@@ -129,8 +171,6 @@ public class EditController {
                 } else {
                     input.setText(value.toString());
                 }
-
-                inputs.add(input);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -143,63 +183,204 @@ public class EditController {
 
     private void validateAndBind() {
         try {
-//            validateInputs();
+            validateInputs();
             bindData();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
+    //validate all inputs by comparing inputs with objects fields restriction annotations
+    private void validateInputs() {
+        /*
+        Say we have:
+        public class Bookings {
+            @FieldInfo(id = true, name = "ID")
+            private SimpleIntegerProperty BookingId;
+
+            @FieldInfo(name = "Booking Date", isDate = true)
+            private SimpleObjectProperty<Date> BookingDate;
+
+            @FieldInfo(name = "Booking No", isString = true, maxLength = 50)
+            private SimpleStringProperty BookingNo;
+         }
+
+         We can loop over all the fields (BookingId, BookingDate, BookingNo) and check the
+         data type (SimpleStringProperty, SimpleIntegerProperty) and then use that to validate
+
+         You can also store all inputs in a list, and loop over them with the fields
+         */
+        Field[] fields = curObj.getClass().getDeclaredFields(); // get all fields
+        ObservableList<Node> children = grdInputs.getChildren(); // get all children from grid
+        inputs.clear(); // clear inputs list
+
+        for (Node child : children) {
+            if (child instanceof TextField || child instanceof ChoiceBox) {
+                // if child is text field or choice box, add it to the list of inputs
+                inputs.add(child);
+            }
+        }
+
+        int curInput = 0;
+        for (int i = 0; i < fields.length; i++) {
+            if (fields[i].getAnnotation(FieldInfo.class).id()) {
+                // if field contains id annotation, continue
+                continue;
+            }
+
+            // get the name of the field using the FieldInfo annotation
+            FieldInfo fieldInfo = fields[i].getAnnotation(FieldInfo.class);
+            String name = fieldInfo.name();
+
+            // if input is a choice box, ensure that an item is selected
+            if (inputs.get(curInput) instanceof ChoiceBox) {
+                Validation.isSelected((ChoiceBox<?>) inputs.get(curInput), name);
+                curInput++;
+                continue;
+            }
+
+            // else validate text field text
+            TextField input = (TextField) inputs.get(curInput);
+            System.out.println(input.getText());
+            if (fieldInfo.isString()) {
+                Validation.isLessThan(input.getText().trim(), fieldInfo.maxLength(), name);
+            } else if (fieldInfo.isDouble()) {
+                Validation.isDouble(input.getText(), name);
+            } else if (fieldInfo.isInt()) {
+                Validation.isInteger(input.getText(), name);
+            } else if (fieldInfo.isDate()) {
+                Validation.isDate(input.getText(), name);
+            }
+            curInput++;
+        }
+    }
+
     // binds data from inputs to current object
     private void bindData() {
-        Field[] fields = curObj.getClass().getDeclaredFields();
-        for (int i = 0; i < fields.length; i++) {
-            Field field = fields[i];
-            TextField input = inputs.get(i);
-            field.setAccessible(true);
+        Field[] fields = curObj.getClass().getDeclaredFields(); // get declared fields
+
+        int curInput = 0; // keep track of the current inputs
+        for (int i = 0; i < fields.length; i++) { // loop over all fields in object
+            if (fields[i].getAnnotation(FieldInfo.class).id()) { // if the annotation is an ID, continue over it (we want to ignore the bookingId for example)
+                continue;
+            }
+
+            Field field = fields[i]; // Get the current field
+            field.setAccessible(true); // set it as accessible
             try {
-                if (field.getType().equals(SimpleStringProperty.class)) {
-                    ((SimpleStringProperty) field.get(curObj)).set(input.getText());
-                } else if (field.getType().equals(SimpleDoubleProperty.class)) {
-                    ((SimpleDoubleProperty) field.get(curObj)).set(Double.parseDouble(input.getText()));
-                } else if (field.getType().equals(SimpleIntegerProperty.class)) {
-                    ((SimpleIntegerProperty) field.get(curObj)).set(Integer.parseInt(input.getText()));
-                } else if (field.getType().equals(SimpleObjectProperty.class) && field.getGenericType().getTypeName().contains("LocalDate")) {
-                    Date date = Date.from(Instant.parse(inputs.get(i).getText()));
-                    ((SimpleObjectProperty<Date>) field.get(curObj)).set(date);
+                /*
+                Say we have:
+                public class Fees {
+                    @FieldInfo(name = "Fee ID", id = true)
+                    private SimpleStringProperty FeeId; // Value is 10
                 }
+
+                and then we have
+                public class BookingDetails {
+                    @FieldInfo(name = "Fee ID", isString = true, maxLength = 10, className = Fees.class)
+                    private SimpleStringProperty FeeId;
+                }
+
+                We can start by looping over BookingDetails and getting all the
+                fields ie BookingDetailId, TripStart, TripEnd, FeeId etc
+
+                We can then check the annotation to see if it has "className" set in the annotation
+                if true, the input will be a choice box.
+
+                We can then get the class using the className annotation, grab all the fields
+                from that subclass and then loop over those fields
+
+                we can then check to see if the subclass @FieldInfo() "id" value is true, and we can grab the value
+                and set it to the FeeId
+                 */
+                if (inputs.get(curInput) instanceof ChoiceBox) {
+                    Object subClass = ((ChoiceBox<?>) inputs.get(curInput)).getValue(); // get the selected object from the choice box
+
+                    for (Field subClassField : subClass.getClass().getDeclaredFields()) { // loop over subclass fields ie fees or packages
+                        subClassField.setAccessible(true); // set accessible
+                        FieldInfo fieldInfo = subClassField.getAnnotation(FieldInfo.class); // get the annotation
+                        if (fieldInfo.id()) { // check if the field is an id in the subclass
+                            Object value = subClassField.get(subClass); // get the value
+
+                            if (value instanceof SimpleIntegerProperty) { // set the value to the main class
+                                ((SimpleIntegerProperty) field.get(curObj)).set(((SimpleIntegerProperty) value).get());
+                            } else if (value instanceof SimpleStringProperty) {
+                                ((SimpleStringProperty) field.get(curObj)).set(((SimpleStringProperty) value).get());
+                            }
+                            break;
+                        }
+                    }
+                    curInput++;
+                    continue;
+                }
+
+                // Check the type of the field and set it appropriately by parsing the input
+                Object value = field.get(curObj);
+                TextField input = (TextField) inputs.get(curInput);
+                if (value instanceof SimpleStringProperty) {
+                    ((SimpleStringProperty) value).set(input.getText());
+                } else if (value instanceof SimpleDoubleProperty) {
+                    ((SimpleDoubleProperty) value).set(Double.parseDouble(input.getText()));
+                } else if (value instanceof SimpleIntegerProperty) {
+                    ((SimpleIntegerProperty) value).set(Integer.parseInt(input.getText()));
+                } else if (value instanceof SimpleObjectProperty<?>) {
+                    LocalDate localDate = LocalDate.parse(input.getText(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                    Date date = Date.from(localDate.atStartOfDay(ZoneId.systemDefault()).toInstant());
+                    ((SimpleObjectProperty<Date>) value).set(date);
+                }
+                curInput++;
             } catch (IllegalAccessException e) {
-                e.printStackTrace();
+                throw new RuntimeException(e.getMessage());
             }
         }
     }
 
-    private ChoiceBox createChoiceBox(Field field, Object obj) {
+    /**
+     * Create a choice box
+     * @param field field containing the table ie TripTypes
+     * @param obj object the field belongs to
+     * @return returns a choice box
+     */
+    private ChoiceBox<?> createChoiceBox(Field field, Object obj) {
+        /*
+        Say we have
+        public class BookingDetails {
+            @FieldInfo(name = "Fee ID", isString = true, maxLength = 10, className = Fees.class)
+            private SimpleStringProperty FeeId;
+        }
+
+        if the className != null or void, then that means it references another table in
+        the database/has a relationship
+
+        this method queries the database using the annotations class name and then creates
+        an observable list and adds the list to a choice box. This choice box is then returned
+        and added to the grid
+         */
         Class<?> linkedClass = field.getAnnotation(FieldInfo.class).className(); // get the class
         field.setAccessible(true);
         try {
-            Statement stmt = dbHelper.getConnection().createStatement(); // create a statement
-            ResultSet rs = stmt.executeQuery("select * from " + linkedClass.getSimpleName()); // get all data from the database using class type
-            ChoiceBox<Object> choiceBox = new ChoiceBox<>(); // create a new choice box
-            ObservableList<Object> items = FXCollections.observableArrayList(); // create an observable list
+            // query the database
+            Statement stmt = dbHelper.getConnection().createStatement();
+            ResultSet rs = stmt.executeQuery("select * from " + linkedClass.getSimpleName());
 
-            Object fieldValue = field.get(obj); // Get the field value (e.g., schoolId)
+            // create choice box and observable list
+            ChoiceBox<Object> choiceBox = new ChoiceBox<>();
+            ObservableList<Object> items = FXCollections.observableArrayList();
 
-            while (rs.next()) { // loop over result set
-                Object objInstance = dbHelper.formatter(linkedClass, rs); // bind the result set data to the given class
+            Object fieldValue = field.get(obj); // get the field value
 
-                Method toStringMethod = linkedClass.getMethod("toString"); // get the toString method
+            // loop over the result set, create a new object (ie TripType) and add to choice box
+            while (rs.next()) {
+                Object objInstance = dbHelper.formatter(linkedClass, rs);
 
-                // Check the field type and compare accordingly
-                if (fieldValue instanceof SimpleIntegerProperty) {
-                    int resultSetId = rs.getInt(1); // get ID as integer
-                    if (((SimpleIntegerProperty) fieldValue).get() == resultSetId) {
-                        choiceBox.setValue(objInstance); // Set the selected value in the choice box
+                // check if the object created from the result set matches the value of the parent object
+                if (fieldValue instanceof SimpleIntegerProperty intProperty) {
+                    if (intProperty.get() != 0 && intProperty.get() == rs.getInt(1)) {
+                        choiceBox.setValue(objInstance); // set the selected value in the choice box
                     }
-                } else if (fieldValue instanceof SimpleStringProperty) {
-                    String resultSetId = rs.getString(1); // get ID as string
-                    if (((SimpleStringProperty) fieldValue).get().equals(resultSetId)) {
-                        choiceBox.setValue(objInstance); // Set the selected value in the choice box
+                } else if (fieldValue instanceof SimpleStringProperty stringProperty) {
+                    if (stringProperty.get() != null && stringProperty.get().equals(rs.getString(1))) {
+                        choiceBox.setValue(objInstance); // set the selected value in the choice box
                     }
                 }
 
@@ -213,27 +394,33 @@ public class EditController {
         }
     }
 
-    // validate all of the inputs by comparing inputs with objects fields restriction annotations
-//    private void validateInputs() {
-//        Field[] fields = curObj.getClass().getDeclaredFields();
-//
-//        for (int i = 0; i < fields.length; i++) {
-//            if (fields[i].getType().equals(SimpleStringProperty.class)) {
-//                Validation.isLessThan(inputs.get(i).getText(), fields[i].getAnnotation(Restriction.class).max(), fields[i].getAnnotation(Column.class).name());
-//            } else if (fields[i].getType().equals(SimpleDoubleProperty.class)) {
-//
-//            } else if (fields[i].getType().equals(SimpleIntegerProperty.class)) {
-//
-//            } else if (fields[i].getType().equals(SimpleObjectProperty.class)) {
-//
-//            }
-//        }
-//    }
-
     private Invoices createInvoice() {
         Invoices invoice = new Invoices();
+        // package, fee, commission total package prices
+        try {
+            ObservableList<Packages> packages = dbHelper.getData("select * from packages where PackageId = ?", Packages.class, booking.getPackageId());
+            ObservableList<Fees> fees = dbHelper.getData("select * from fees where FeeId = ?", Fees.class, bookingDetail.getFeeId());
+            ObservableList<BookingDetails> bookingDetails = dbHelper.getData("select * from bookingdetails", BookingDetails.class);
 
-        // calculate stuff
+            Packages bookingPackage = packages.getFirst();
+            Fees bookingDetailFee = fees.getFirst();
+            BookingDetails newBookingDetails = bookingDetails.getLast();
+
+            double totalPrice = bookingPackage.getPkgBasePrice() + bookingDetail.getBasePrice();
+            double tax = totalPrice * 0.05;
+
+            invoice.setInvoiceDate(new Date());
+            invoice.setFees(bookingDetailFee.getFeeAmt());
+            invoice.setTotal(totalPrice);
+            invoice.setTotalTax(tax);
+            invoice.setCommissionTotal(newBookingDetails.getAgencyCommission() + bookingPackage.getPkgAgencyCommission());
+            invoice.setBookingDetailId(newBookingDetails.getBookingDetailId());
+            invoice.setCustomerId(booking.getCustomerId());
+            invoice.setPackageId(booking.getPackageId());
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
         return invoice;
     }

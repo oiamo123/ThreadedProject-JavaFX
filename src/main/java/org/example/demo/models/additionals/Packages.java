@@ -3,9 +3,6 @@ package org.example.demo.models.additionals;
 import javafx.beans.property.*;
 import org.example.demo.util.annotations.FieldInfo;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 public class Packages {
     @FieldInfo(id = true, name = "ID")
     private SimpleIntegerProperty PackageId =  new SimpleIntegerProperty();

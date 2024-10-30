@@ -11,7 +11,7 @@ public class Products_Suppliers {
 
     @Override
     public String toString() {
-        return ProductSupplierId.toString();
+        return ProductSupplierId.get() + "";
     }
 
     public int getProductSupplierId() {

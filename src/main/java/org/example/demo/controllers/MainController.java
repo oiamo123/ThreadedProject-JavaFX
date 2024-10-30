@@ -4,9 +4,6 @@ import java.lang.reflect.Field;
 
 import javafx.application.Platform;
 import javafx.collections.ObservableList;
-import javafx.event.ActionEvent;
-import javafx.event.Event;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -21,12 +18,11 @@ import org.example.demo.util.annotations.FieldInfo;
 import org.example.demo.util.dbhelpers.BookingDetailsDB;
 import org.example.demo.util.dbhelpers.BookingsDB;
 import org.example.demo.util.dbhelpers.CustomerDB;
+import org.example.demo.util.dbhelpers.InvoicesDB;
 
 public class MainController {
 
     @FXML private Button btnAdd;
-    @FXML private Button btnDelete;
-    @FXML private Button btnEdit;
     @FXML private Tab tabBooking;
     @FXML private Tab tabBookingDetail;
     @FXML private Tab tabCustomer;
@@ -41,8 +37,6 @@ public class MainController {
     @FXML
     void initialize() {
         assert btnAdd != null : "fx:id=\"btnAdd\" was not injected: check your FXML file 'main-view.fxml'.";
-        assert btnDelete != null : "fx:id=\"btnDelete\" was not injected: check your FXML file 'main-view.fxml'.";
-        assert btnEdit != null : "fx:id=\"btnEdit\" was not injected: check your FXML file 'main-view.fxml'.";
         assert tabBooking != null : "fx:id=\"tabBooking\" was not injected: check your FXML file 'main-view.fxml'.";
         assert tabBookingDetail != null : "fx:id=\"tabBookingDetail\" was not injected: check your FXML file 'main-view.fxml'.";
         assert tabCustomer != null : "fx:id=\"tabCustomer\" was not injected: check your FXML file 'main-view.fxml'.";
@@ -53,56 +47,49 @@ public class MainController {
         assert tvInvoices != null : "fx:id=\"tvInvoices\" was not injected: check your FXML file 'main-view.fxml'.";
 
         // Set bookings table view data when tab is clicked
-        tabBooking.setOnSelectionChanged(new EventHandler<Event>() {
-            @Override
-            public void handle(Event event) {
-                if (tabBooking.isSelected()) {
-                    setButtons(false);
-                    obj = new Bookings();
+        tabBooking.setOnSelectionChanged(_ -> {
+            if (tabBooking.isSelected()) {
+                setButtons(false);
+                obj = new Bookings();
 
-                    createColumns(new Bookings(), tvBookings);
-                    ObservableList<Bookings> data = BookingsDB.getBookings();
-                    tvBookings.setItems(data);
-                }
+                createColumns(new Bookings(), tvBookings);
+                ObservableList<Bookings> data = BookingsDB.getBookings();
+                tvBookings.setItems(data);
             }
         });
 
         // Set customer table view data when tab is clicked
-        tabCustomer.setOnSelectionChanged(new EventHandler<Event>() {
-            @Override
-            public void handle(Event event) {
-                if (tabCustomer.isSelected()) {
-                    setButtons(false);
-                    obj = new Customers();
+        tabCustomer.setOnSelectionChanged(_ -> {
+            if (tabCustomer.isSelected()) {
+                setButtons(false);
+                obj = new Customers();
 
-                    createColumns(new Customers(), tvCustomers);
-                    ObservableList<Customers> data = CustomerDB.getCustomers();
-                    tvCustomers.setItems(data);
-                }
+                createColumns(new Customers(), tvCustomers);
+                ObservableList<Customers> data = CustomerDB.getCustomers();
+                tvCustomers.setItems(data);
             }
         });
 
         // Set bookings details table view data when tab is clicked
-        tabBookingDetail.setOnSelectionChanged(new EventHandler<Event>() {
-            @Override
-            public void handle(Event event) {
-                if (tabBookingDetail.isSelected()) {
-                    setButtons(false);
-                    obj = new BookingDetails();
+        tabBookingDetail.setOnSelectionChanged(_ -> {
+            if (tabBookingDetail.isSelected()) {
+                setButtons(false);
+                obj = new BookingDetails();
 
-                    createColumns(new BookingDetails(), tvBookingDetails);
-                    ObservableList<BookingDetails> data = BookingDetailsDB.getBookingDetails();
-                    tvBookingDetails.setItems(data);
-                }
+                createColumns(new BookingDetails(), tvBookingDetails);
+                ObservableList<BookingDetails> data = BookingDetailsDB.getBookingDetails();
+                tvBookingDetails.setItems(data);
             }
         });
 
-        tabInvoices.setOnSelectionChanged(new EventHandler<Event>() {
-            @Override
-            public void handle(Event event) {
-                if (tabInvoices.isSelected()) {
-                    setButtons(true);
-                }
+        tabInvoices.setOnSelectionChanged(_ -> {
+            if (tabInvoices.isSelected()) {
+                setButtons(true);
+                obj = new Invoices();
+
+                createColumns(new Invoices(), tvInvoices);
+                ObservableList<Invoices> data = InvoicesDB.getInvoices();
+                tvInvoices.setItems(data);
             }
         });
 
@@ -110,13 +97,9 @@ public class MainController {
         addTvClickListener(tvBookings);
         addTvClickListener(tvBookingDetails);
         addTvClickListener(tvCustomers);
+        addTvClickListener(tvInvoices);
 
-        btnAdd.setOnAction(new EventHandler<ActionEvent>() {
-            @Override
-            public void handle(ActionEvent actionEvent) {
-                openDialog(new Bookings(), "Add ");
-            }
-        });
+        btnAdd.setOnAction(_ -> openDialog(new Bookings(), "Add "));
 
         // Show customer data when application starts
         createColumns(new Customers(), tvCustomers);
@@ -141,6 +124,22 @@ public class MainController {
             stage.setTitle(mode + obj.getClass().getAnnotation(FieldInfo.class).name());
 
             stage.showAndWait();
+
+            SingleSelectionModel<Tab> selectionModel = tabPane.getSelectionModel();
+
+            if (mode.equalsIgnoreCase("edit ")) {
+                if (obj instanceof Bookings) {
+                    selectionModel.select(tabBooking);
+                } else if (obj instanceof Customers) {
+                    selectionModel.select(tabCustomer);
+                } else if (obj instanceof Invoices) {
+                    selectionModel.select(tabInvoices);
+                } else {
+                    selectionModel.select(tabBookingDetail);
+                }
+            } else {
+                selectionModel.select(tabInvoices);
+            }
 
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -168,16 +167,11 @@ public class MainController {
 
     // Adds click listener to passed in table view to columns
     private void addTvClickListener(TableView tv) {
-        tv.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+        tv.getSelectionModel().selectedItemProperty().addListener((_, _, newValue) -> {
             int index = tv.getSelectionModel().getSelectedIndex();
 
             if (tv.getSelectionModel().isSelected(index)) {
-                Platform.runLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        openDialog(newValue, "Edit");
-                    }
-                });
+                Platform.runLater(() -> openDialog(newValue, "Edit "));
             }
         });
     }
@@ -185,7 +179,5 @@ public class MainController {
     // sets buttons based on passed in boolean
     private void setButtons (boolean val) {
         btnAdd.setDisable(val);
-        btnDelete.setDisable(val);
-        btnEdit.setDisable(val);
     }
 }
